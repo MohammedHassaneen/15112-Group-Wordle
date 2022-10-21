@@ -3,8 +3,9 @@ import pickle
 import uuid
 import os
 import sqlite3
-#class WordGenerator:
-#class gameSession:
+import tkinter as tk
+from tkinter import messagebox
+from functions import *
 class DMHandler:
     def __init__(self,headers,session):
         """an initialiser that initialises the values of headers and session to
@@ -34,7 +35,7 @@ class DMHandler:
             pendingDMRequests.append(getPendingDMRequestsRequest.json()["inbox"]["threads"][i]["thread_id"])
         #return the list of the thread IDs of the pending chats
         return pendingDMRequests
-    def approvePendingDMRequests(self,threadID):
+    def approvePendingDMRequest(self,threadID):
         """Approves the pending DM request by threadID
 
         Args:
@@ -45,21 +46,46 @@ class DMHandler:
         #if the chat request was approved successfully
         if '"status":"ok"' in approvePendingRequest.text: return True
         else: return False
-    def getDMThreads(self):
+    def getDMThreads(self,processedUsernames=[]):
         """gets the DM chats (threads) in the chat page
 
         Returns:
-            List: a list of the thread IDs of the DM chats
+            List: a list of tuples of the form (username,threadID)
         """
-        #a list of the thread IDs of the DM chats
+        #a list of the usernames and thread IDs of the DM chats
         DMThreads=[]
         #send a request to get the DM chats
         getDMRequests=self.__session.get("https://i.instagram.com/api/v1/direct_v2/inbox/?use_unified_inbox=true&persistentBadging=true",headers=self.__headers)
         #for every thread (chat) in the response
         for i in range(0,len(getDMRequests.json()["inbox"]["threads"])):
-            #append the thread ID of the chat to the list of DMThreads
-            DMThreads.append(getDMRequests.json()["inbox"]["threads"][i]["thread_id"])
-        #return the list of the thread IDs of the DM chats
+            #get the username,threadID,and message type
+            username=getDMRequests.json()["inbox"]["threads"][i]["users"][0]["username"]
+            threadID=getDMRequests.json()["inbox"]["threads"][i]["thread_id"]
+            messageType=getDMRequests.json()["inbox"]["threads"][i]["items"][0]["item_type"]
+            #if the username is in the usernames we already processed (added to the list of players)
+            if(username in processedUsernames):
+                #skip this username
+                continue
+            #if the message sent is not a text message
+            if(messageType!="text"):
+                #send a clarifying message to the player
+                self.sendMessage(threadID,f'Unrecognized command {username}! entered message should be text')
+                #delete the thread
+                self.deleteThread(threadID)
+                continue
+            #get the text message sent
+            message=getDMRequests.json()["inbox"]["threads"][i]["items"][0]["text"]
+            #if the message is hey or hi
+            if(message.lower()=="hey" or message.lower()=="hi"):
+                #append the username and thread ID of the chat to the list of DMThreads
+                DMThreads.append((username,threadID))
+                self.sendMessage(threadID,f"welcome to the group wordle game {username}")
+            else:
+                #send a clarifying message to the player
+                self.sendMessage(threadID,f'Unrecognized command {username}! please send "hi" or "hey" to join the game session')
+                #delete the thread
+                self.deleteThread(threadID)
+        #return the list of the usernames and thread IDs of the DM chats
         return DMThreads
     def getThreadItems(self,threadID):
         """Gets the new messages (thread items) in a certain chat by threadID
@@ -193,4 +219,82 @@ class InstagramAccount:
         return self.__DMHandler
     def __str__(self):
         return f"Username: {self.__username} Password: {self.__password}"
-#class GUI:
+class QRCodeWindow:
+    def __init__(self,dmHandler):
+        """Shows the window that has the QR code that redirects the players to 
+           the instagram bot's profile
+        """
+        #a dictionary of the form {username: thread ID}
+        self.__players={}
+        #a dm handler object
+        self.__dmHandler=dmHandler
+        #initialise the QR code window
+        self.__QRCodeWindow=tk.Tk()
+        self.__QRCodeWindow.title("QR Code")
+        #the width and height of the QR code window
+        windowWidth,windowHeight=[500,500]
+        #get the current screen's width and height in pixels
+        screenWidth,screenHeight=[self.__QRCodeWindow.winfo_screenwidth(),
+                                  self.__QRCodeWindow.winfo_screenheight()]
+        #calculate the x and y coordinates of the center of the screen
+        xCenter=(screenWidth//2)-(windowWidth//2)
+        yCenter=(screenHeight//2)-(windowHeight//2)
+        #set the size and where the window should open
+        self.__QRCodeWindow.geometry(f"{str(windowWidth)}x{str(windowHeight)}+{str(xCenter)}+{str(yCenter)}")
+        #variable to hold the background image
+        backgroundImage=tk.PhotoImage(file="backgroundImage.png")
+        #canvas that will hold the background image, text, and QR code
+        canvas=tk.Canvas(self.__QRCodeWindow,width=windowWidth,height=windowHeight,highlightthickness=0)
+        canvas.pack(fill="both", expand=True)
+        canvas.create_image(0,0,image=backgroundImage,anchor="nw")
+        canvas.create_text(windowWidth//1.95,windowHeight//12,text="Scan the following QR Code ",font=("Comic Sans MS",25,"bold"))
+        QRCodeImage=tk.PhotoImage(file="botQRCode.png")
+        canvas.create_image(windowWidth//10,windowHeight//6.5,image=QRCodeImage,anchor="nw")
+        self.checkWhoJoined()
+        tk.mainloop()
+    def checkWhoJoined(self):
+        """Checks who joined the game session
+        """
+        #accept the pending DM requests
+        acceptPendingRequests(self.__dmHandler)
+        #call the getDMThreads function with the processed usernames as argument
+        dmThreads=self.__dmHandler.getDMThreads(self.__players.keys())
+        #for every thread (chat) in the chat page
+        for thread in dmThreads:
+            #if the username is not in the players dictionary
+            if(thread[0] not in self.__players):
+                #add the username:threadID pair to the dictionary
+                self.__players[thread[0]]=thread[1]
+                #the remaining number of players is 5-the number of players we 
+                #have in the dictionary
+                remainingPlayers=5-len(self.__players)
+                #if there are no remaining players
+                if(remainingPlayers==0):
+                    messagebox.showinfo("Starting the Game!",f"{thread[0]} joined the game! Let's start playing!")
+                    self.__QRCodeWindow.destroy()
+                else:
+                    messagebox.showinfo("New Player Joined!",f"{thread[0]} joined the game! {remainingPlayers} more to go")
+        self.__QRCodeWindow.after(10000,self.checkWhoJoined)
+    def getPlayers(self):
+        """Gets the players dictionary
+
+        Returns:
+            Dictionary: the players dictionary
+        """
+        return self.__players
+class MainWindow:
+    def __init__(self):
+        self.__randomWord=""#some random ass function that generates random words
+class GUI():
+    def __init__(self):
+        account=InstagramAccount("USERNAME","PASSWORD")
+        account.login()
+        dmHandler=account.getDMHandler()
+        self.__QRCodeWindow=QRCodeWindow(dmHandler)
+        # should be self.__QRCodeWindow.getPlayers() instead 
+        players={'210x_': '340282366841710300949128339769233457832',
+            '172b_': '340282366841710300949128195032494833526',
+            'moash210': '340282366841710300949128115334042112882',
+            '850h_': '340282366841710300949128392037240313293',
+            '210xbot': '340282366841710300949128287248101712772'}
+GUI()

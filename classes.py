@@ -284,7 +284,7 @@ class QRCodeWindow:
         return self.__players
 class MainWindow:
     def __init__(self):
-        self.__randomWord=""#some random ass function that generates random words
+        self.__randomWord=""
 class GUI():
     def __init__(self):
         account=InstagramAccount("USERNAME","PASSWORD")
@@ -292,5 +292,9 @@ class GUI():
         dmHandler=account.getDMHandler()
         self.__QRCodeWindow=QRCodeWindow(dmHandler)
         # should be self.__QRCodeWindow.getPlayers() instead 
-        #players dictionary
+        players={'210x_': '340282366841710300949128339769233457832',
+            '172b_': '340282366841710300949128195032494833526',
+            'moash210': '340282366841710300949128115334042112882',
+            '850h_': '340282366841710300949128392037240313293',
+            '210xbot': '340282366841710300949128287248101712772'}
 GUI()

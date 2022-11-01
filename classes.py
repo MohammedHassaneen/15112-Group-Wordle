@@ -3,102 +3,92 @@ import pickle
 import uuid
 import os
 import tkinter as tk
-from tkinter import DISABLED, messagebox
+from tkinter import DISABLED, NORMAL, messagebox
 from functions import *
-import time
 import enchant #only used to check if an entered word is a valid english word or not
-class IndividualGame:
-    def __init__(self,dmHandler,chat,randomWord,indexOfLetterInOriginalWord):
-        """initialises attributes
+class InstagramAccount:
+    def __init__(self,username,password):
+        """Initialises the values of username and password to the values passed,
+           initialises the headers dictionary sent with the HTTP requests, starts
+           a new network session, and creates a DM Handler object
 
         Args:
-            dmHandler (DMHandler Object): an object to handle DM
-            chat (tuple): tuple of the form (username,threadID)
-            randomWord (String): the random word 
+            username (String): the username of the instagram account
+            password (String): the password of the instagram account
         """
-        self.__dmHandler=dmHandler
-        self.__username=chat[0]
-        self.__threadID=chat[1]
-        self.__randomWord=randomWord
-        self.__indexOfLetterInOriginalLetter=indexOfLetterInOriginalWord
-        self.__attempts=6
-        self.__guessed=False
-        self.__gameDone=False
-        self.__englishDictionary=enchant.Dict("en_US")
-    def processOneGuess(self):
-        self.__guess=self.getGuess()
-        if(self.__guess!=None):
-            message=self.checkGuess()
-            self.sendResult(message)
-            self.__dmHandler.deleteThread(self.__threadID)
-    def getGuess(self):
-        """gets the player's guess
+        self.__username=username
+        self.__password=password
+        self.__headers={"X-IG-Capabilities": "3wI=",
+                        "User-Agent": "Instagram 109.0.0.18.124 Android (28/9; 420dpi; 1080x2324; samsung; SM-A705FN; a70q; qcom; en_GB; 170693940)",
+                        "Accept-Language": "en-Qa",
+                        "content-type": "application/x-www-form-urlencoded; charset=UTF-8"}
+        self.__session=requests.session()
+        self.__DMHandler=DMHandler(self.__headers,self.__session)
+    def login(self):
+        """Updates the network session cookies if a cookies.dat file exists in
+           the current working directory or sends a login request
 
         Returns:
-            String: the player's guess
+            Boolean: True if updating the session cookies from an existing cookies file
+                     was successful or if the login attempt was successful and false
+                     otherwise
         """
-        try:
-            threadItems=self.__dmHandler.getThreadItems(self.__threadID)
-            guess=threadItems[0][2]
-            return guess.lower()
-        except:
-            return None
-    def getAllOccurances(self,word,ch):
-        indices = []
-        pos = word.find(ch)
-        while pos != -1:
-            indices.append(pos)
-            pos = word.find(ch, pos + 1)
-        return indices
-    def checkGuess(self):
-        message=["⬛"]*5
-        messageSet=set()
-        if(len(self.__guess)!=5):
-            message="Invalid Guess! Your guess has to be a 5 letter word"
-        elif(not self.__englishDictionary.check(self.__guess)):
-            message="Invalid Guess! Your guess is not an english word"
-        else:
-            #the following code is adapted from the article https://www.practicepython.org/blog/2022/02/12/wordle.html
-            for i,(randomWordCh,guessCh) in enumerate(zip(self.__randomWord,self.__guess)):
-                if randomWordCh==guessCh:
-                    message[i]="🟩"
-                    messageSet.add(i)
-            for i,guessCh in enumerate(self.__guess):
-                if guessCh in self.__randomWord and message[i]!="🟩":
-                    positions=self.getAllOccurances(self.__randomWord,guessCh)
-                    for position in positions:
-                        if position not in messageSet:
-                            message[i]="🟨"
-                            messageSet.add(position)
-                            break
-            self.__attempts-=1
-        return ''.join(message)
-    def sendResult(self,message):
-        self.__dmHandler.sendMessage(self.__threadID,message)
-        if(message=="🟩🟩🟩🟩🟩"):
-            suffixes={1:"st",
-                      2:"nd",
-                      3:"rd",
-                      4:"th",
-                      5:"th"}
-            self.__guessed=True
-            self.__gameDone=True
-            self.__dmHandler.sendMessage(self.__threadID,f"Congrats. You guessed the word.")
-            self.__dmHandler.sendMessage(self.__threadID,f'Hint: the {self.__indexOfLetterInOriginalLetter+1}{suffixes[self.__indexOfLetterInOriginalLetter+1]} letter of the word you and your teammates have to guess is "{self.__randomWord[self.__indexOfLetterInOriginalLetter]}"')
-        else:
-            if(self.__attempts==0):
-                self.__gameDone=True
-                self.__dmHandler.sendMessage(self.__threadID,f'You are out of attempts. The word was {self.__randomWord}')
-            else:
-                self.__dmHandler.sendMessage(self.__threadID,f"attempts left: {self.__attempts}")
-    def getResult(self):
-        return self.__guessed
-    def isGameDone(self):
-        return self.__gameDone
-    def returnGuess(self):
-        return self.__guess
+        #if there is already a cookies.dat file in the current working directory
+        #we can update the session cookies instead of logging in again
+        if("cookies.dat" in os.listdir()):
+            with open("cookies.dat","rb") as cookiesFile:
+                #load the cookies object from the cookies.dat file using pickle
+                self.__session.cookies.update(pickle.load(cookiesFile))
+                return True
+        #generate a random uuid4 to send with the login HTTP request
+        uID=str(uuid.uuid4())
+        #the post data sent with the post login HTTP request
+        postData = {"_csrftoken":"missing",
+                    "username":self.__username,
+                    "password":self.__password,
+                    "login_attempt_count":"0",
+                    "device_id":uID}
+        #send the loginRequest to the instagram server with the appropriate 
+        #headers and post data
+        loginRequest=self.__session.post("https://i.instagram.com/api/v1/accounts/login/",headers=self.__headers,data=postData)
+        #if our login attempt was successful
+        if '{"logged_in_user":{"' in loginRequest.text:
+            #create a new cookies.dat file
+            with open("cookies.dat","wb") as cookiesFile:
+                #save the session cookies to the created cookies.dat file 
+                pickle.dump(loginRequest.cookies,cookiesFile)
+            return True
+        return False
     def getUsername(self):
+        """getter method that gets self.__username
+
+        Returns:
+            String: self.__username
+        """
         return self.__username
+    def getPassword(self):
+        """getter method that gets self.__password
+
+        Returns:
+            String: self.__password
+        """
+        return self.__username
+    def getHeaders(self):
+        """getter method that gets self.__headers
+
+        Returns:
+            String: self.__username
+        """
+        return self.__headers
+    def getDMHandler(self):
+        """getter method that gets self.__DMHandler
+
+        Returns:
+            DMHandler Object: self.__DMHandler
+        """
+        return self.__DMHandler
+    def __str__(self):
+        return f"Username: {self.__username} Password: {self.__password}"
 class DMHandler:
     def __init__(self,headers,session):
         """an initialiser that initialises the values of headers and session to
@@ -247,75 +237,6 @@ class DMHandler:
         #if the chat was deleted successfully
         if '"status":"ok"' in deleteThreadRequest.text: return True
         else: return False
-class InstagramAccount:
-    def __init__(self,username,password):
-        """Initialises the values of username and password to the values passed,
-           initialises the headers dictionary sent with the HTTP requests, and 
-           starts a new network session
-
-        Args:
-            username (String): the username of the instagram account
-            password (String): the password of the instagram account
-        """
-        self.__username=username
-        self.__password=password
-        self.__headers={"X-IG-Capabilities": "3wI=",
-                        "User-Agent": "Instagram 109.0.0.18.124 Android (28/9; 420dpi; 1080x2324; samsung; SM-A705FN; a70q; qcom; en_GB; 170693940)",
-                        "Accept-Language": "en-Qa",
-                        "content-type": "application/x-www-form-urlencoded; charset=UTF-8"}
-        self.__session=requests.session()
-        self.__DMHandler=DMHandler(self.__headers,self.__session)
-    def login(self):
-        """Update the session cookies if a cookies.dat file exists in the current
-           working directory or send a login request
-
-        Returns:
-            Boolean: True if updating the session cookies from an existing cookies file
-                     was successful or if the login attempt was successful and false
-                     otherwise
-        """
-        #if there is already a cookies.dat file in the current working directory
-        #we can update the session cookies instead of logging in again
-        if("cookies.dat" in os.listdir()):
-            with open("cookies.dat","rb") as cookiesFile:
-                #load the cookies object from the cookies.dat file using pickle
-                self.__session.cookies.update(pickle.load(cookiesFile))
-                return True
-        #generate a random uuid4 to send with the login HTTP request
-        uID=str(uuid.uuid4())
-        #the post data sent with the post login HTTP request
-        postData = {"_csrftoken":"missing",
-                    "username":self.__username,
-                    "password":self.__password,
-                    "login_attempt_count":"0",
-                    "device_id":uID}
-        #send the loginRequest to the instagram server with the appropriate 
-        #headers and post data
-        loginRequest=self.__session.post("https://i.instagram.com/api/v1/accounts/login/",headers=self.__headers,data=postData)
-        #if our login attempt was successful
-        if '{"logged_in_user":{"' in loginRequest.text:
-            #create a new cookies.dat file
-            with open("cookies.dat","wb") as cookiesFile:
-                #save the session cookies to the created cookies.dat file 
-                pickle.dump(loginRequest.cookies,cookiesFile)
-            return True
-        return False
-    def getUsername(self):
-        """getter method that gets self.__username
-
-        Returns:
-            String: self.__username
-        """
-        return self.__username
-    def getDMHandler(self):
-        """getter method that gets self.__DMHandler
-
-        Returns:
-            DMHandler Object: self.__DMHandler
-        """
-        return self.__DMHandler
-    def __str__(self):
-        return f"Username: {self.__username} Password: {self.__password}"
 class QRCodeWindow:
     def __init__(self,dmHandler):
         """Shows the window that has the QR code that redirects the players to 
@@ -375,18 +296,18 @@ class QRCodeWindow:
                 #the remaining number of players is 5-the number of players we 
                 #have in the dictionary
                 self.__dmHandler.sendMessage(self.__players[username][0],"""
-Welcome to the group wordle game!
-As you wait for the other players to join, please read the following instructions
-Instructions for the GUI game:
-When the game starts, you and your teammates will have to guess a random 5-letter word in ONE ATTEMPT!.
-Now how on earth are you going to guess a random 5-letter word in one attempt? i gotcha.
-Each one of you has been assigned another random 5-letter word that they will have to guess individually.
-If you guess the word correctly, you and your teammates get a (super helpful) clue that will (greatly) help you guess the original word.
-Your guesses should be entered here on instagram (enter your first guess here when the game starts). Good luck!
-Instructions for the individual game:
-🟩: the random word you have been assigned contains this letter and it is in the right spot
-🟨: the random word you have been assigned contains this letter but it is in the wrong spot
-⬛: the random word you have been assigned does not contain this letter""")
+                    Welcome to the group wordle game!
+                    As you wait for the other players to join, please read the following instructions
+                    Instructions for the GUI game:
+                    When the game starts, you and your teammates will have to guess a random 5-letter word in ONE ATTEMPT!.
+                    Now how on earth are you going to guess a random 5-letter word in one attempt? i gotcha.
+                    Each one of you has been assigned another random 5-letter word that they will have to guess individually.
+                    If you guess the word correctly, you and your teammates get a (super helpful) clue that will (greatly) help you guess the original word.
+                    Your guesses should be entered here on instagram (enter your first guess here when the game starts). Good luck!
+                    Instructions for the individual game:
+                    🟩: the random word you have been assigned contains this letter and it is in the right spot
+                    🟨: the random word you have been assigned contains this letter but it is in the wrong spot
+                    ⬛: the random word you have been assigned does not contain this letter""")
                 self.__dmHandler.deleteThread(self.__players[username][0])
                 remainingPlayers=5-len(self.__players)
                 #if there are no remaining players
@@ -411,6 +332,98 @@ Instructions for the individual game:
         return self.__randomWord
     def getIndividualGames(self):
         return self.__individualGames
+class IndividualGame:
+    def __init__(self,dmHandler,chat,randomWord,indexOfLetterInOriginalWord):
+        """initialises attributes
+
+        Args:
+            dmHandler (DMHandler Object): an object to handle DM
+            chat (tuple): tuple of the form (username,threadID)
+            randomWord (String): the random word 
+        """
+        self.__dmHandler=dmHandler
+        self.__username=chat[0]
+        self.__threadID=chat[1]
+        self.__randomWord=randomWord
+        self.__indexOfLetterInOriginalLetter=indexOfLetterInOriginalWord
+        self.__attempts=6
+        self.__guessed=False
+        self.__gameDone=False
+        self.__englishDictionary=enchant.Dict("en_US")
+    def processOneGuess(self):
+        self.__guess=self.getGuess()
+        if(self.__guess!=None):
+            message=self.checkGuess()
+            self.sendResult(message)
+            self.__dmHandler.deleteThread(self.__threadID)
+    def getGuess(self):
+        """gets the player's guess
+
+        Returns:
+            String: the player's guess
+        """
+        try:
+            threadItems=self.__dmHandler.getThreadItems(self.__threadID)
+            guess=threadItems[0][2]
+            return guess.lower()
+        except:
+            return None
+    def getAllOccurances(self,word,ch):
+        indices = []
+        pos = word.find(ch)
+        while pos != -1:
+            indices.append(pos)
+            pos = word.find(ch, pos + 1)
+        return indices
+    def checkGuess(self):
+        message=["⬛"]*5
+        messageSet=set()
+        if(len(self.__guess)!=5):
+            message="Invalid Guess! Your guess has to be a 5 letter word"
+        elif(not self.__englishDictionary.check(self.__guess)):
+            message="Invalid Guess! Your guess is not an english word"
+        else:
+            #the following code is adapted from the article https://www.practicepython.org/blog/2022/02/12/wordle.html
+            for i,(randomWordCh,guessCh) in enumerate(zip(self.__randomWord,self.__guess)):
+                if randomWordCh==guessCh:
+                    message[i]="🟩"
+                    messageSet.add(i)
+            for i,guessCh in enumerate(self.__guess):
+                if guessCh in self.__randomWord and message[i]!="🟩":
+                    positions=self.getAllOccurances(self.__randomWord,guessCh)
+                    for position in positions:
+                        if position not in messageSet:
+                            message[i]="🟨"
+                            messageSet.add(position)
+                            break
+            self.__attempts-=1
+        return ''.join(message)
+    def sendResult(self,message):
+        self.__dmHandler.sendMessage(self.__threadID,message)
+        if(message=="🟩🟩🟩🟩🟩"):
+            suffixes={1:"st",
+                      2:"nd",
+                      3:"rd",
+                      4:"th",
+                      5:"th"}
+            self.__guessed=True
+            self.__gameDone=True
+            self.__dmHandler.sendMessage(self.__threadID,f"Congrats. You guessed the word.")
+            self.__dmHandler.sendMessage(self.__threadID,f'Hint: the {self.__indexOfLetterInOriginalLetter+1}{suffixes[self.__indexOfLetterInOriginalLetter+1]} letter of the word you and your teammates have to guess is "{self.__randomWord[self.__indexOfLetterInOriginalLetter]}"')
+        else:
+            if(self.__attempts==0):
+                self.__gameDone=True
+                self.__dmHandler.sendMessage(self.__threadID,f'You are out of attempts. The word was {self.__randomWord}')
+            else:
+                self.__dmHandler.sendMessage(self.__threadID,f"attempts left: {self.__attempts}")
+    def getResult(self):
+        return self.__guessed
+    def isGameDone(self):
+        return self.__gameDone
+    def returnGuess(self):
+        return self.__guess
+    def getUsername(self):
+        return self.__username
 class MainWindow:
     def __init__(self,dmHandler,randomWord,individualGames,players):
         self.__dmHandler=dmHandler
@@ -447,8 +460,8 @@ class MainWindow:
         canvas.create_text(windowWidth//3.75,windowHeight//8,text="Guess The Word",font=("Comic Sans MS",50,"bold"))
         self.__enteredWord=tk.Entry(canvas,font=("MS Sans Serif",30,"bold"))
         canvas.create_window(windowWidth//3.75,windowHeight//2.5,window=self.__enteredWord)
-        guessButton=tk.Button(canvas,text="guess",font=("MS Sans Serif",30,"bold"),command=self.checkGuess)
-        canvas.create_window(windowWidth//3.75,windowHeight//1.75,window=guessButton)
+        self.__guessButton=tk.Button(canvas,text="guess",font=("MS Sans Serif",30,"bold"),command=self.checkGuess,state=DISABLED)
+        canvas.create_window(windowWidth//3.75,windowHeight//1.75,window=self.__guessButton)
         self.__textBox=tk.Text(self.__MainWindow,width=45,height=21,font=("MS Sans Serif",15,"bold"),state=DISABLED)
         canvas.create_window(windowWidth//1.3,windowHeight//2,window=self.__textBox)
         self.__textBox.configure(state="normal")
@@ -471,12 +484,18 @@ class MainWindow:
                 if(not individualGame.isGameDone()):
                     individualGame.processOneGuess()
                     guess=individualGame.returnGuess()
-                    if(guess!=None):
+                    guessed=individualGame.getResult()
+                    if(guess!=None and not guessed):
                         self.__textBox.configure(state="normal")
                         self.__textBox.insert("end",f'{individualGame.getUsername()} guessed: {individualGame.returnGuess()}\n')
                         self.__textBox.configure(state=DISABLED)
+                    elif(guess!=None and guessed):
+                        self.__textBox.configure(state="normal")
+                        self.__textBox.insert("end",f'{individualGame.getUsername()} guessed: {individualGame.returnGuess()} (Correct Guess!)\n')
+                        self.__textBox.configure(state=DISABLED)
             self.__keepGettingUpdates=self.__MainWindow.after(10000,self.getUpdates)
         else:
+            self.__guessButton.configure(state=NORMAL)
             messagebox.showinfo("Guess the word","You are ready to guess the word!")
             self.__MainWindow.after_cancel(self.__keepGettingUpdates)
     def checkGuess(self):

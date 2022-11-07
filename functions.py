@@ -1,3 +1,5 @@
+# Name: Mohammed Elsayed
+# AndrewID: mohammee
 import requests
 import re
 import random
@@ -12,13 +14,13 @@ def generate5LetterWord(constraint=None):
        constraint is simply "The letter X should be at position i"
 
     Args:
-        processedUsernames (tuple, optional): a tuple of the form (i,x) where i
+        constraint (tuple, optional): a tuple of the form (i,x) where i
                                               is the index the letter x should be
                                               at in the random word we will generate.
                                               Defaults to None.
 
     Returns:
-        List: a list of the messages (thread items) in the chat with the threadID passed
+        String: a random 5-letter word that satisfies the given constraint
     """
     #if no constraint is provided, then we do not need to specify a pattern
     #for the word we will generate
@@ -53,18 +55,24 @@ def generate5LetterWord(constraint=None):
     except:
         return False
 def assignIndivdualWords(randomWord,players):
-    """assign a random word to players based on randomWord
+    """assigns a random word to players based on randomWord
 
     Args:
-        randomWord (String): the random word we will base the gemeration of 
+        randomWord (String): the random word we will base the generation of 
                              individual words on.
         players (dictionary): a dictionary of the form {username:[threadID]}
     """
+    #a list of random indices from 0 to 4 inclusive
     indices=list(range(5))
     for player in players:
+        #choose a random index
         randomIndex=random.choice(indices)
+        #append the random index to the list (key) in the player dictionary
         players[player].append(randomIndex)
+        #generate a random word based on the randomly chosen index
         randomIndividualWord=generate5LetterWord((randomIndex,randomWord[randomIndex]))
+        #append the random word to the list (key) in the player dictionary
         players[player].append(randomIndividualWord)
+        #remove the index from the randomIndices list
         indices.remove(randomIndex)
     return players

@@ -1,10 +1,14 @@
+# Name: Mohammed Elsayed
+# AndrewID: mohammee
 import requests
 import pickle
 import uuid
 import os
 import tkinter as tk
 from tkinter import DISABLED, NORMAL, messagebox
+import customtkinter
 from functions import *
+from PIL import Image,ImageTk
 import enchant #only used to check if an entered word is a valid english word or not
 class InstagramAccount:
     def __init__(self,username,password):
@@ -26,7 +30,7 @@ class InstagramAccount:
         self.__DMHandler=DMHandler(self.__headers,self.__session)
     def login(self):
         """Updates the network session cookies if a cookies.dat file exists in
-           the current working directory or sends a login request
+           the current working directory and sends a login request if not
 
         Returns:
             Boolean: True if updating the session cookies from an existing cookies file
@@ -77,9 +81,16 @@ class InstagramAccount:
         """getter method that gets self.__headers
 
         Returns:
-            String: self.__username
+            Dicionary: self.__headers
         """
         return self.__headers
+    def getSession(self):
+        """getter method that gets self.__session
+
+        Returns:
+            Session Object: self.__session
+        """
+        return self.__session
     def getDMHandler(self):
         """getter method that gets self.__DMHandler
 
@@ -88,6 +99,12 @@ class InstagramAccount:
         """
         return self.__DMHandler
     def __str__(self):
+        """Magic function to return the state of the object
+
+        Returns:
+            String: a message that has the values (states) of the username and 
+                    password attributes
+        """
         return f"Username: {self.__username} Password: {self.__password}"
 class DMHandler:
     def __init__(self,headers,session):
@@ -110,7 +127,7 @@ class DMHandler:
         """
         #a list of all the pending DM requests (stores the thread IDs of the pending chats)
         pendingDMRequests=[]
-        #Send the get pending DM requests to the instagream server  
+        #send the get pending DM requests to the instagram server with the appropriate headers
         getPendingDMRequestsRequest=self.__session.get("https://i.instagram.com/api/v1/direct_v2/pending_inbox/?use_unified_inbox=true",headers=self.__headers)
         #for every pending request in the response
         for i in range(0,len(getPendingDMRequestsRequest.json()["inbox"]["threads"])):
@@ -123,6 +140,9 @@ class DMHandler:
 
         Args:
             threadID (String): the thread ID of the pending chat to be accepted
+        Returns:
+            Boolean: true if the DM request was approved successfully and false
+                     otherwise 
         """
         #send a request to approve the pending chat request
         approvePendingRequest=self.__session.post(f"https://i.instagram.com/api/v1/direct_v2/threads/{threadID}/approve/",headers=self.__headers)
@@ -140,7 +160,8 @@ class DMHandler:
         Returns:
             List: a list of tuples of the form (username,threadID)
         """
-        #a list of the usernames and thread IDs of the DM chats
+        #a list of the usernames and thread IDs of the DM chats that has the form 
+        #(username,threadID)
         DMThreads=[]
         #send a request to get the DM chats
         getDMRequests=self.__session.get("https://i.instagram.com/api/v1/direct_v2/inbox/?use_unified_inbox=true&persistentBadging=true",headers=self.__headers)
@@ -178,13 +199,14 @@ class DMHandler:
         """Gets the new messages (thread items) in a certain chat by threadID
 
         Args:
-            threadID (String): the thread of the chat we wish to get the thread
+            threadID (String): the threadID of the chat we wish to get the thread
                                items of
 
         Returns:
             List: a list of the messages (thread items) in the chat with the threadID passed
         """
         #a list of the messages (thread items) in the chat with the passed thread ID
+        #of the form (threadID,Sender,message)
         threadItems=[]
         #send a request to get the thread items in the chat with the passed thread ID
         getThreadItemsRequest=self.__session.get(f"https://i.instagram.com/api/v1/direct_v2/threads/{threadID}/?use_unified_inbox=true",headers=self.__headers)
@@ -252,34 +274,27 @@ class QRCodeWindow:
         self.__dmHandler=dmHandler
         self.__randomWord=""
         #initialise the QR code window
-        self.__QRCodeWindow=tk.Tk()
+        windowWidth,windowHeight=[500,500]
+        #set the default apperance mode (light, dark, or system)
+        customtkinter.set_appearance_mode("dark")
+        #set the default color theme
+        customtkinter.set_default_color_theme("dark-blue")
+        #create a new window object
+        self.__QRCodeWindow=customtkinter.CTk()
+        #set properties...
         self.__QRCodeWindow.title("QR Code")
         self.__QRCodeWindow.iconbitmap("icon.ico")
-        #the width and height of the QR code window
-        windowWidth,windowHeight=[500,500]
-        #get the current screen's width and height in pixels
-        screenWidth,screenHeight=[self.__QRCodeWindow.winfo_screenwidth(),
-                                  self.__QRCodeWindow.winfo_screenheight()]
-        #calculate the x and y coordinates of the center of the screen
-        xCenter=(screenWidth//2)-(windowWidth//2)
-        yCenter=(screenHeight//2)-(windowHeight//2)
-        #set the size and where the window should open
-        self.__QRCodeWindow.geometry(f"{str(windowWidth)}x{str(windowHeight)}+{str(xCenter)}+{str(yCenter)}")
-        #variable to hold the background image
-        backgroundImage=tk.PhotoImage(file="backgroundImageQRCodeWindow.png")
-        #canvas that will hold the background image, text, and QR code
-        canvas=tk.Canvas(self.__QRCodeWindow,width=windowWidth,height=windowHeight,highlightthickness=0)
-        canvas.pack(fill="both", expand=True)
-        canvas.create_image(0,0,image=backgroundImage,anchor="nw")
-        canvas.create_text(windowWidth//1.95,windowHeight//12,text="Scan the following QR Code ",font=("Comic Sans MS",25,"bold"))
-        QRCodeImage=tk.PhotoImage(file="botQRCode.png")
-        canvas.create_image(windowWidth//10,windowHeight//6.5,image=QRCodeImage,anchor="nw")
-        #handle what would happen if the user closed the QR code window
-        self.__QRCodeWindow.protocol("WM_DELETE_WINDOW",lambda:exit())
+        self.__QRCodeWindow.geometry(f"{str(windowWidth)}x{str(windowHeight)}")
+        self.__QRCodeWindow.resizable(False, False)
+        #the backgroundImage of the QR Code window
+        image=Image.open("QRCodeWindowImage.png").resize((windowWidth*2, int(windowHeight*1.8)))
+        self.backgroundImage=ImageTk.PhotoImage(image)
+        self.imageLabel=tk.Label(self.__QRCodeWindow,image=self.backgroundImage)
+        self.imageLabel.place(relx=0.5,rely=0.49,anchor=tk.CENTER)
         self.checkWhoJoined()
-        tk.mainloop()
+        self.__QRCodeWindow.mainloop()
     def checkWhoJoined(self):
-        """Checks who joined the game session
+        """Periodic method that checks who joined the game session
         """
         #accept the pending DM requests
         acceptPendingRequests(self.__dmHandler)
@@ -293,8 +308,7 @@ class QRCodeWindow:
             if(username not in self.__players):
                 #add the username:[threadID] pair to the dictionary
                 self.__players[username]=[threadID]
-                #the remaining number of players is 5-the number of players we 
-                #have in the dictionary
+                #send the new player the instructions on instagram
                 self.__dmHandler.sendMessage(self.__players[username][0],"""
                     Welcome to the group wordle game!
                     As you wait for the other players to join, please read the following instructions
@@ -308,14 +322,23 @@ class QRCodeWindow:
                     🟩: the random word you have been assigned contains this letter and it is in the right spot
                     🟨: the random word you have been assigned contains this letter but it is in the wrong spot
                     ⬛: the random word you have been assigned does not contain this letter""")
+                #delete the player's chat
                 self.__dmHandler.deleteThread(self.__players[username][0])
+                #the remaining number of players is 5-the number of players we 
+                #have in the dictionary
                 remainingPlayers=5-len(self.__players)
                 #if there are no remaining players
                 if(remainingPlayers==0):
+                    #generate a random 5 letter word
                     self.__randomWord=generate5LetterWord()
+                    #assign each player another random 5 letter word based on the 
+                    #random word generated
                     assignIndivdualWords(self.__randomWord,self.__players)
                     for player in self.__players:
+                        #create individual game objects and append them to the 
+                        #individualGames list
                         self.__individualGames.append(IndividualGame(self.__dmHandler,(player,self.__players[player][0]),self.__players[player][2],self.__players[player][1]))
+                    #since we have 5 players in the game session, start the game
                     messagebox.showinfo("Starting the Game!",f"{thread[0]} joined the game! Let's start playing!")
                     self.__QRCodeWindow.destroy()
                 else:
@@ -329,33 +352,46 @@ class QRCodeWindow:
         """
         return self.__players
     def getRandomWord(self):
+        """Gets the random word generated
+
+        Returns:
+            String: the random word generated
+        """
         return self.__randomWord
     def getIndividualGames(self):
+        """Gets the individual games list
+
+        Returns:
+            List: the individual games list
+        """
         return self.__individualGames
 class IndividualGame:
     def __init__(self,dmHandler,chat,randomWord,indexOfLetterInOriginalWord):
         """initialises attributes
 
         Args:
-            dmHandler (DMHandler Object): an object to handle DM
+            dmHandler (DMHandler Object): DMHandler Object used to handle DM 
+                                          HTTP requests
             chat (tuple): tuple of the form (username,threadID)
-            randomWord (String): the random word 
+            randomWord (String): the random word
+            indexOfLetterInOriginalWord (String): the index of the letter in the
+                                                  original word that the player
+                                                  will be given as a hint 
+                                                  
         """
         self.__dmHandler=dmHandler
         self.__username=chat[0]
         self.__threadID=chat[1]
         self.__randomWord=randomWord
         self.__indexOfLetterInOriginalLetter=indexOfLetterInOriginalWord
+        #set the number of attempts for each indivdual game
         self.__attempts=6
+        #two boolean variables to check if the player has guessed the word and 
+        #if the game is done
         self.__guessed=False
         self.__gameDone=False
+        #english dictionary (used to check if entered guess is an english word)
         self.__englishDictionary=enchant.Dict("en_US")
-    def processOneGuess(self):
-        self.__guess=self.getGuess()
-        if(self.__guess!=None):
-            message=self.checkGuess()
-            self.sendResult(message)
-            self.__dmHandler.deleteThread(self.__threadID)
     def getGuess(self):
         """gets the player's guess
 
@@ -368,7 +404,24 @@ class IndividualGame:
             return guess.lower()
         except:
             return None
+    def processOneGuess(self):
+        """Processes one entered guess on instagram
+        """
+        self.__guess=self.getGuess()
+        if(self.__guess!=None):
+            message=self.checkGuess()
+            self.sendResult(message)
+            self.__dmHandler.deleteThread(self.__threadID)
     def getAllOccurances(self,word,ch):
+        """Gets all the indices at which ch occurs in word
+
+        Args:
+            word (String): the word we are looking for occurances of ch in
+            ch (String): the ch we are searching for in the word
+
+        Returns:
+            List: the indices of word at which ch occurs
+        """
         indices = []
         pos = word.find(ch)
         while pos != -1:
@@ -376,6 +429,11 @@ class IndividualGame:
             pos = word.find(ch, pos + 1)
         return indices
     def checkGuess(self):
+        """Checks an entered guess on instagram
+
+        Returns:
+            String: a message to be sent to the player based on his guess
+        """
         message=["⬛"]*5
         messageSet=set()
         if(len(self.__guess)!=5):
@@ -383,7 +441,7 @@ class IndividualGame:
         elif(not self.__englishDictionary.check(self.__guess)):
             message="Invalid Guess! Your guess is not an english word"
         else:
-            #the following code is adapted from the article https://www.practicepython.org/blog/2022/02/12/wordle.html
+            #the following code is adapted from the article https://www.practicepython.org/blog/2022/02/12/wordle.html with slight modifications
             for i,(randomWordCh,guessCh) in enumerate(zip(self.__randomWord,self.__guess)):
                 if randomWordCh==guessCh:
                     message[i]="🟩"
@@ -399,6 +457,11 @@ class IndividualGame:
             self.__attempts-=1
         return ''.join(message)
     def sendResult(self,message):
+        """Sends a message to the player based on his entered guess
+
+        Args:
+            message (String): the message to be sent to the player
+        """
         self.__dmHandler.sendMessage(self.__threadID,message)
         if(message=="🟩🟩🟩🟩🟩"):
             suffixes={1:"st",
@@ -417,92 +480,178 @@ class IndividualGame:
             else:
                 self.__dmHandler.sendMessage(self.__threadID,f"attempts left: {self.__attempts}")
     def getResult(self):
+        """Gets the individual game result
+
+        Returns:
+            Boolean: the individual game result
+        """
         return self.__guessed
     def isGameDone(self):
+        """Gets the state of the individual game (done/not done)
+
+        Returns:
+            Boolean: the state of the individual game (done/not done)
+        """
         return self.__gameDone
     def returnGuess(self):
+        """Gets the player's guess
+
+        Returns:
+            String: the player's guess
+        """
         return self.__guess
     def getUsername(self):
+        """Gets the player's username
+
+        Returns:
+            String: the player's username
+        """
         return self.__username
 class MainWindow:
     def __init__(self,dmHandler,randomWord,individualGames,players):
+        """initialise the values of the attributes and initialise the main 
+           window
+           
+
+        Args:
+            dmHandler (DMHandler object): the dmHandler object of the instagram account
+            randomWord (String): the random word the players have to guess together
+            individualGames (list): a list of individualGame objects
+            players (dictionary): the players dictionary which has their threadIDs
+                                  and their randomly generated words
+        """
+        #initialise attributes...
         self.__dmHandler=dmHandler
         self.__players=players
         self.__randomWord=randomWord
         self.__keepGettingUpdates=True
         self.__individualGames=individualGames
-        print(self.__randomWord)
-        print(players)
+        print(self.__players)
         self.initialiseMainWindow()
     def initialiseMainWindow(self):
-        self.__MainWindow=tk.Tk()
-        self.__MainWindow.title("Main Window")
-        self.__MainWindow.iconbitmap("icon.ico")
-        #the width and height of the QR code window
-        windowWidth,windowHeight=[1200,650]
-        #get the current screen's width and height in pixels
-        screenWidth,screenHeight=[self.__MainWindow.winfo_screenwidth(),
-                                  self.__MainWindow.winfo_screenheight()]
-        #calculate the x and y coordinates of the center of the screen
-        xCenter=(screenWidth//2)-(windowWidth//2)
-        yCenter=(screenHeight//2)-(windowHeight//2)
-        #set the size and where the window should open
-        self.__MainWindow.geometry(f"{str(windowWidth)}x{str(windowHeight)}+{str(xCenter)}+{str(yCenter)}")
-        #variable to hold the background image
-        backgroundImage=tk.PhotoImage(file="backgroundImageMainWindow.png")
-        #canvas that will hold the background image, text, and entry box
-        canvas=tk.Canvas(self.__MainWindow,width=windowWidth,height=windowHeight,highlightthickness=0)
-        #set the backgrounImage as an attribute of the canvas object to prevent 
-        #python from "garbage collecting" it
-        canvas.backgroundImage=backgroundImage
-        canvas.pack(fill="both",expand=True)
-        canvas.create_image(0,0,image=backgroundImage,anchor="nw")
-        canvas.create_text(windowWidth//3.75,windowHeight//8,text="Guess The Word",font=("Comic Sans MS",50,"bold"))
-        self.__enteredWord=tk.Entry(canvas,font=("MS Sans Serif",30,"bold"))
-        canvas.create_window(windowWidth//3.75,windowHeight//2.5,window=self.__enteredWord)
-        self.__guessButton=tk.Button(canvas,text="guess",font=("MS Sans Serif",30,"bold"),command=self.checkGuess,state=DISABLED)
-        canvas.create_window(windowWidth//3.75,windowHeight//1.75,window=self.__guessButton)
-        self.__textBox=tk.Text(self.__MainWindow,width=45,height=21,font=("MS Sans Serif",15,"bold"),state=DISABLED)
-        canvas.create_window(windowWidth//1.3,windowHeight//2,window=self.__textBox)
-        self.__textBox.configure(state="normal")
-        self.__textBox.insert("end",f'Hello {", ".join(self.__players.keys())}\n')
-        self.__textBox.configure(state=DISABLED)
-        messagebox.showinfo("Game started!","Enter your first guess on instagram")
+        """Initialises the main window with all its properties
+        """
+        #set the main window width and height
+        windowWidth,windowHeight=[1000,700]
+        #set the default apperance mode (light, dark, or system)
+        customtkinter.set_appearance_mode("dark")
+        #set the default color theme
+        customtkinter.set_default_color_theme("dark-blue")
+        #create a new window object
+        self.__mainWindow=customtkinter.CTk()
+        #set properties...
+        self.__mainWindow.title("Group Wordle")
+        self.__mainWindow.iconbitmap("icon.ico")
+        #set the size of the main window
+        self.__mainWindow.geometry(f"{str(windowWidth)}x{str(windowHeight)}")
+        self.__mainWindow.resizable(False, False)
+        #set the background image (by placing it inside a label)
+        backgroundImageFile=Image.open("mainWindowBackgroundImage.png").resize((int(windowWidth*1.8), int(windowHeight*1.8)))
+        backgroundImage=ImageTk.PhotoImage(backgroundImageFile)
+        imageLabel=tk.Label(self.__mainWindow,image=backgroundImage)
+        imageLabel.place(relx=0.5,rely=0.5,anchor=tk.CENTER)
+        #create the left frame and "grid" it
+        self.leftFrame=customtkinter.CTkFrame(self.__mainWindow,width=450,height=625,border_width=0)        
+        self.leftFrame.grid(row=0, column=0, sticky="nswe",padx=25,pady=40)
+        #open the "guess" image and place it inside the left frame
+        guessImageFile=Image.open("guess.png").resize((int(self.leftFrame.winfo_width()*800),int(self.leftFrame.winfo_height()*800)))
+        guessImage=ImageTk.PhotoImage(guessImageFile)
+        guessImageLabel=tk.Label(self.leftFrame,image=guessImage,borderwidth=0)
+        guessImageLabel.place(relx=0.6,rely=0.15,anchor=tk.CENTER)
+        #create the guess text box and place it inside the left frame
+        self.__enteredWord=customtkinter.CTkEntry(self.leftFrame,width=300,height=70,
+                                                 placeholder_text="Enter Guess",
+                                                 justify=tk.CENTER,
+                                                 text_font=("comic sans SF",30))
+        self.__enteredWord.place(relx=0.5,rely=0.45,anchor=tk.CENTER)
+        #create the guess button and place it inside the left frame
+        self.__guessButton=customtkinter.CTkButton(self.leftFrame,
+                                                text="guess",
+                                                border_width=1,
+                                                width=180,
+                                                height=50,
+                                                text_font=("comic sans SF",25),
+                                                state=DISABLED,
+                                                command=self.checkGuess
+                                                )
+        self.__guessButton.place(relx=0.5,rely=0.7,anchor=tk.CENTER)
+        #create the right frame and "grid" it
+        self.rightFrame=customtkinter.CTkFrame(self.__mainWindow,width=450,height=625)
+        self.rightFrame.grid(row=0, column=1, sticky="nswe", padx=20, pady=40)
+        #open the "updates" image and place it inside the right frame
+        updatesImageFile=Image.open("updates.png").resize((int(self.rightFrame.winfo_width()*850), int(self.rightFrame.winfo_height()*850)))
+        updatesImage=ImageTk.PhotoImage(updatesImageFile)
+        updatesImageLabel=tk.Label(self.rightFrame,image=updatesImage,borderwidth=0)
+        updatesImageLabel.place(relx=0.57,rely=0.2,anchor=tk.CENTER)
+        #create the updates text box and place it inside the right frame
+        self.__updatesTextbox=customtkinter.CTkTextbox(self.rightFrame,width=420,height=440,text_font=("comic Sans SF",15,"bold"),state=DISABLED)
+        self.__updatesTextbox.place(relx=0.5,rely=0.62,anchor=tk.CENTER)
+        #add a hello message to the updates textbox and inform the players they
+        #can enter their first guess on instagram
+        self.__updatesTextbox.configure(state="normal")
+        self.__updatesTextbox.insert("end",f'Hello {", ".join(self.__players.keys())}\n')
+        self.__updatesTextbox.insert("end",f'Enter your first guess on Instagram!\n')
+        self.__updatesTextbox.configure(state=DISABLED)
         self.getUpdates()
-        tk.mainloop()
+        self.__mainWindow.mainloop()
     def getRandomWord(self):
+        """gets the random word the program generated
+
+        Returns:
+            String: self.__randomWord
+        """
         return self.__randomWord
     def getIndividualWords(self):
+        """gets the list of individual words 
+
+        Returns:
+            list: list of tuples of the form
+                  (player,index of the original word assigned, random word assigned)
+        """
         return [(player,self.__players[1],self.__players[2]) for player in self.__players]
     def getUpdates(self):
+        """gets updates (guesses) on individual games
+        """
+        #if we still have an indivdual game going
         if(not self.__individualGames[0].isGameDone() or\
               not self.__individualGames[1].isGameDone() or\
               not self.__individualGames[2].isGameDone() or\
               not self.__individualGames[3].isGameDone() or\
               not self.__individualGames[4].isGameDone()):
+            #for every individual game
             for individualGame in self.__individualGames:
+                #if this game is not done
                 if(not individualGame.isGameDone()):
+                    #process the guess and store it
                     individualGame.processOneGuess()
                     guess=individualGame.returnGuess()
                     guessed=individualGame.getResult()
+                    #if the user entered a guess but it is not the right word
                     if(guess!=None and not guessed):
-                        self.__textBox.configure(state="normal")
-                        self.__textBox.insert("end",f'{individualGame.getUsername()} guessed: {individualGame.returnGuess()}\n')
-                        self.__textBox.configure(state=DISABLED)
+                        self.__updatesTextbox.configure(state="normal")
+                        self.__updatesTextbox.insert("end",f'{individualGame.getUsername()} guessed: {individualGame.returnGuess()}\n')
+                        self.__updatesTextbox.configure(state=DISABLED)
+                    #if the user entered a guess and it is the right word
                     elif(guess!=None and guessed):
-                        self.__textBox.configure(state="normal")
-                        self.__textBox.insert("end",f'{individualGame.getUsername()} guessed: {individualGame.returnGuess()} (Correct Guess!)\n')
-                        self.__textBox.configure(state=DISABLED)
-            self.__keepGettingUpdates=self.__MainWindow.after(10000,self.getUpdates)
+                        self.__updatesTextbox.configure(state="normal")
+                        self.__updatesTextbox.insert("end",f'{individualGame.getUsername()} guessed: {individualGame.returnGuess()} (Correct Guess!)\n')
+                        self.__updatesTextbox.configure(state=DISABLED)
+            self.__keepGettingUpdates=self.__mainWindow.after(10000,self.getUpdates)
+        #if we are done with all the games
         else:
             self.__guessButton.configure(state=NORMAL)
             messagebox.showinfo("Guess the word","You are ready to guess the word!")
-            self.__MainWindow.after_cancel(self.__keepGettingUpdates)
+            self.__mainWindow.after_cancel(self.__keepGettingUpdates)
     def checkGuess(self):
+        """Checks if the entered word in the GUI is the right word
+        """
         guess=self.__enteredWord.get()
         if(guess.lower()==self.__randomWord):
+            #show a congrats msg
             messagebox.showinfo("Congratulations","Congrats! You guessed the word correctly")
-            self.__MainWindow.destroy()
+            #destroy the window 
+            self.__mainWindow.destroy()
+            #delete all the dm threads
             for player in self.__players:
                 try:
                     self.__dmHandler.deleteThread(player[0])
@@ -510,7 +659,7 @@ class MainWindow:
                     pass
         else:
             messagebox.showinfo("sorry :(",f'sorry :( you did not guess the word correctly. The word was "{self.__randomWord}"')
-            self.__MainWindow.destroy()
+            self.__mainWindow.destroy()
             for player in self.__players:
                 try:
                     self.__dmHandler.deleteThread(player[0])

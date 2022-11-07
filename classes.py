@@ -62,7 +62,8 @@ class InstagramAccount:
                 #save the session cookies to the created cookies.dat file 
                 pickle.dump(loginRequest.cookies,cookiesFile)
             return True
-        return False
+        messagebox.showinfo("login error!","could not login to instagram. exiting peacefully")
+        exit()
     def getUsername(self):
         """getter method that gets self.__username
 

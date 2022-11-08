@@ -6,9 +6,8 @@ def main():
     """main function that runs the game
     """
     #create a new InstagramAccount object 
+    #username and password go here
     account=InstagramAccount("USERNAME","PASSWORD")
-    #IMPORTANT NOTE!!! the login function does not handle challenges (2fa), so
-    #the account we are trying to login to must have 2fa disabled
     account.login()
     dmHandler=account.getDMHandler()
     qrCodeWindow=QRCodeWindow(dmHandler)

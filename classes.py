@@ -527,7 +527,6 @@ class MainWindow:
         self.__randomWord=randomWord
         self.__keepGettingUpdates=True
         self.__individualGames=individualGames
-        print(self.__players)
         self.initialiseMainWindow()
     def initialiseMainWindow(self):
         """Initialises the main window with all its properties

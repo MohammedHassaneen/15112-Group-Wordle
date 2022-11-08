@@ -11,4 +11,5 @@ How to run the project:
 
 IMPORTANT NOTE: THE LOGIN FUNCTION DOES NOT HANDLE CHALLENGES (2FA), SO MAKE SURE THE ACCOUNT YOU ARE USING HAS 2FA DISABLED. it is better if you create a new 
 instagram account and use it rather than use an existing instagram account.
+
 ANOTHER NOTE: if you face issues with login due to 2fa, try to login, do the challenge (2fa) on your phone/laptop and login again.

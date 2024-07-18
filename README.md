@@ -1,4 +1,4 @@
-# 15112-Group-Wordle
+# Group Wordle
 
 A word-guessing game where 5 players have to guess a randomly generated 5-letter word in one attempt 
 by playing 5 individual word-guessing games on instagram
